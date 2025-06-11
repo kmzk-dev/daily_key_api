@@ -44,7 +44,7 @@
                     <input type="text" id="extraSeedInput" class="form-control" placeholder="任意の値" style="width: auto; display: inline-block;">
                 </div>
 
-                <!-- ★★★ 追加: 取得ボタン ★★★ -->
+                <!-- 取得ボタン -->
                 <button id="getKeyButton" class="btn btn-primary ms-4">キー取得</button>
             </div>
         </div>
@@ -59,7 +59,9 @@
                 <div id="randomKeyDisplay" class="key-display text-center mb-3">
                     キー取得ボタンを押してください
                 </div>
-                <p class="card-text">有効期限: <span id="keyExpiration"></span></p>
+                <!-- ★★★ 追加: 最終取得時刻の表示 ★★★ -->
+                <p class="card-text">最終取得時刻 (JST): <span id="lastFetchedTime" class="text-info">---</span></p>
+                <p class="card-text">有効期限: <span id="keyExpiration" class="text-danger"></span></p>
             </div>
         </div>
     </main>
@@ -76,9 +78,10 @@
         const lengthSelect = document.getElementById('lengthSelect');
         const numericOnlyCheckbox = document.getElementById('numericOnlyCheckbox');
         const extraSeedInput = document.getElementById('extraSeedInput');
-        const getKeyButton = document.getElementById('getKeyButton'); // ★★★ 追加
+        const getKeyButton = document.getElementById('getKeyButton');
         const currentTimeSpan = document.getElementById('currentTime');
         const randomKeyDisplay = document.getElementById('randomKeyDisplay');
+        const lastFetchedTimeSpan = document.getElementById('lastFetchedTime'); // ★★★ 追加
         const keyExpirationSpan = document.getElementById('keyExpiration');
 
         // APIのエンドポイントURL。環境に合わせて変更してください。
@@ -121,7 +124,7 @@
             if (initialJstDay !== null) {
                 const currentJstDay = now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
                 if (initialJstDay !== currentJstDay) {
-                    console.log('日付が変わりました。APIを再コールします。');
+                    console.log('日付が変わりました。キー取得ボタンを自動クリックします。');
                     // 日付変更時は自動的にキー取得を行う (ユーザー体験のため)
                     getKeyButton.click(); // ボタンクリックをシミュレート
                     initialJstDay = currentJstDay; // 新しい日付に更新
@@ -137,6 +140,7 @@
          */
         async function fetchKey(length, type, extraSeed) {
             randomKeyDisplay.textContent = '取得中...';
+            lastFetchedTimeSpan.textContent = '---'; // 取得中表示時にリセット
             keyExpirationSpan.textContent = '...';
 
             // APIリクエストURLを構築
@@ -145,7 +149,7 @@
                 requestUrl += '&type=numeric';
             }
             if (extraSeed) { // extra_seed が空でなければ追加
-                requestUrl += `&extra=${encodeURIComponent(extraSeed)}`;
+                requestUrl += `&extra_seed=${encodeURIComponent(extraSeed)}`;
             }
 
             try {
@@ -161,12 +165,14 @@
 
                 // 取得したキーと有効期限をページに表示
                 randomKeyDisplay.textContent = data.random_string;
+                lastFetchedTimeSpan.textContent = data.generated_at_jst; // ★★★ 追加
                 keyExpirationSpan.textContent = data.expires_at_jst;
 
             } catch (error) {
                 // API呼び出し失敗時のエラーハンドリング
                 console.error('APIの呼び出しに失敗しました:', error);
                 randomKeyDisplay.textContent = '取得に失敗しました';
+                lastFetchedTimeSpan.textContent = '---'; // エラー時もリセット
                 keyExpirationSpan.textContent = '---';
             }
         }
@@ -193,7 +199,7 @@
             setInterval(updateJapanTime, 1000); // 1秒ごとに更新
 
             // ページロード時のキー取得はボタンクリックに委ねる
-            // randomKeyDisplay.textContent の初期表示を「キー取得ボタンを押してください」に変更
+            // randomKeyDisplay.textContent の初期表示を「キー取得ボタンを押してください」に変更済み
         });
 
         // 桁数セレクトボックスの値が変更されたときのイベントリスナー
@@ -220,7 +226,7 @@
             // fetchKeyはボタンクリックで実行
         });
 
-        // ★★★ 追加: キー取得ボタンのイベントリスナー ★★★
+        // キー取得ボタンのイベントリスナー
         getKeyButton.addEventListener('click', () => {
             const selectedLength = lengthSelect.value;
             const currentType = numericOnlyCheckbox.checked ? 'numeric' : 'alphanumeric';
