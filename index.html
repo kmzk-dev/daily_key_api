@@ -114,7 +114,9 @@
             }
 
             try {
-                const response = await fetch(requestUrl);
+                const response = await fetch(requestUrl,{
+                    cache: 'no-cache', // キャッシュを無効化
+                });
                 if (!response.ok) {
                     throw new Error(`HTTPエラー: ${response.status}`);
                 }
