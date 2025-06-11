@@ -149,7 +149,7 @@
                 requestUrl += '&type=numeric';
             }
             if (extraSeed) { // extra_seed が空でなければ追加
-                requestUrl += `&extra_seed=${encodeURIComponent(extraSeed)}`;
+                requestUrl += `&extra=${encodeURIComponent(extraSeed)}`;
             }
 
             try {
