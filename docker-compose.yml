@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  web:
+    build: . # Dockerfileがあるカレントディレクトリをビルドコンテキストとする
+    ports:
+      - "8080:80" # ホストの8080番ポートをコンテナの80番ポートにマッピング
+    volumes:
+      - .:/var/www/html # ホストのカレントディレクトリをコンテナのApacheドキュメントルートにマウント
+    restart: always # コンテナが終了した場合に常に再起動する
