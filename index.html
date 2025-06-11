@@ -37,6 +37,15 @@
                     <input class="form-check-input" type="checkbox" role="switch" id="numericOnlyCheckbox">
                     <label class="form-check-label" for="numericOnlyCheckbox">数字のみ</label>
                 </div>
+
+                <!-- extra_seed 入力フィールド -->
+                <div class="ms-4">
+                    <label for="extraSeedInput" class="text-white me-2">追加シード:</label>
+                    <input type="text" id="extraSeedInput" class="form-control" placeholder="任意の値" style="width: auto; display: inline-block;">
+                </div>
+
+                <!-- ★★★ 追加: 取得ボタン ★★★ -->
+                <button id="getKeyButton" class="btn btn-primary ms-4">キー取得</button>
             </div>
         </div>
     </nav>
@@ -48,9 +57,9 @@
                 <hr>
                 <p class="card-title">取得したランダムキー:</p>
                 <div id="randomKeyDisplay" class="key-display text-center mb-3">
-                    読み込み中...
+                    キー取得ボタンを押してください
                 </div>
-                <p class="card-text">有効期限: <span id="keyExpiration" class="text-danger"></span></p>
+                <p class="card-text">有効期限: <span id="keyExpiration"></span></p>
             </div>
         </div>
     </main>
@@ -65,14 +74,22 @@
 
         // DOM要素の取得
         const lengthSelect = document.getElementById('lengthSelect');
-        const numericOnlyCheckbox = document.getElementById('numericOnlyCheckbox'); // ★★★ 追加
+        const numericOnlyCheckbox = document.getElementById('numericOnlyCheckbox');
+        const extraSeedInput = document.getElementById('extraSeedInput');
+        const getKeyButton = document.getElementById('getKeyButton'); // ★★★ 追加
         const currentTimeSpan = document.getElementById('currentTime');
         const randomKeyDisplay = document.getElementById('randomKeyDisplay');
         const keyExpirationSpan = document.getElementById('keyExpiration');
 
+        // APIのエンドポイントURL。環境に合わせて変更してください。
         const API_URL = 'https://fillmee.bambina.jp/daily_key_api/api/jst.php';
         let initialJstDay = null;
 
+        /**
+         * 指定された名前のクッキーの値を取得します。
+         * @param {string} name - 取得するクッキーの名前。
+         * @returns {string|null} クッキーの値、または見つからない場合はnull。
+         */
         function getCookie(name) {
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
@@ -80,52 +97,74 @@
             return null;
         }
 
+        /**
+         * 指定された名前と値でクッキーを設定します。有効期限は1年間です。
+         * @param {string} name - 設定するクッキーの名前。
+         * @param {string} value - 設定するクッキーの値。
+         */
         function setCookie(name, value) {
             const expires = new Date();
-            expires.setTime(expires.getTime() + (365 * 24 * 60 * 60 * 1000));
+            expires.setTime(expires.getTime() + (365 * 24 * 60 * 60 * 1000)); // 1年間
             document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
         }
         
+        /**
+         * 日本標準時 (JST) の現在時刻を更新し、日付が変わった場合にAPIを再コールします。
+         */
         function updateJapanTime() {
             const now = new Date();
+            // JSTで時刻文字列をフォーマット
             const jstString = now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\//g, '/');
             currentTimeSpan.textContent = jstString;
 
+            // 日付が変わったかどうかのチェック
             if (initialJstDay !== null) {
                 const currentJstDay = now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
                 if (initialJstDay !== currentJstDay) {
                     console.log('日付が変わりました。APIを再コールします。');
-                    const currentType = numericOnlyCheckbox.checked ? 'numeric' : 'alphanumeric';
-                    fetchKey(lengthSelect.value, currentType);
-                    initialJstDay = currentJstDay;
+                    // 日付変更時は自動的にキー取得を行う (ユーザー体験のため)
+                    getKeyButton.click(); // ボタンクリックをシミュレート
+                    initialJstDay = currentJstDay; // 新しい日付に更新
                 }
             }
         }
 
-        // ★★★ 修正: fetchKey関数にtype引数を追加 ★★★
-        async function fetchKey(length, type) {
+        /**
+         * ランダムキーAPIを呼び出し、結果をページに表示します。
+         * @param {string} length - 取得するキーの桁数。
+         * @param {string} type - 取得するキーのタイプ ('numeric' または 'alphanumeric')。
+         * @param {string} extraSeed - 乱数生成に追加する任意のシード文字列。
+         */
+        async function fetchKey(length, type, extraSeed) {
             randomKeyDisplay.textContent = '取得中...';
             keyExpirationSpan.textContent = '...';
 
-            // URLにパラメータを追加
+            // APIリクエストURLを構築
             let requestUrl = `${API_URL}?length=${length}`;
             if (type === 'numeric') {
                 requestUrl += '&type=numeric';
             }
+            if (extraSeed) { // extra_seed が空でなければ追加
+                requestUrl += `&extra=${encodeURIComponent(extraSeed)}`;
+            }
 
             try {
-                const response = await fetch(requestUrl,{
-                    cache: 'no-cache', // キャッシュを無効化
+                // fetch APIを使用してAPIを呼び出し、キャッシュを無効化
+                const response = await fetch(requestUrl, {
+                    cache: 'no-cache', // APIレスポンスがキャッシュされないように設定
                 });
+
                 if (!response.ok) {
                     throw new Error(`HTTPエラー: ${response.status}`);
                 }
-                const data = await response.json();
+                const data = await response.json(); // JSONレスポンスをパース
 
+                // 取得したキーと有効期限をページに表示
                 randomKeyDisplay.textContent = data.random_string;
                 keyExpirationSpan.textContent = data.expires_at_jst;
 
             } catch (error) {
+                // API呼び出し失敗時のエラーハンドリング
                 console.error('APIの呼び出しに失敗しました:', error);
                 randomKeyDisplay.textContent = '取得に失敗しました';
                 keyExpirationSpan.textContent = '---';
@@ -134,38 +173,59 @@
 
         // --- イベントリスナーと初期化処理 ---
 
+        // DOMContentLoaded: HTMLドキュメントが完全に読み込まれ、パースされたときに発生
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. 桁数設定をクッキーから復元
+            // 1. 桁数設定をクッキーから復元（保存されていなければデフォルト値）
             const savedLength = getCookie('preferredKeyLength');
             lengthSelect.value = savedLength ? savedLength : '15';
 
-            // ★★★ 追加: タイプの選択状態をクッキーから復元 ★★★
+            // 2. タイプの選択状態をクッキーから復元
             const savedType = getCookie('preferredKeyType');
             numericOnlyCheckbox.checked = (savedType === 'numeric');
 
-            // 2. 現在時刻の表示を開始
-            initialJstDay = new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
-            updateJapanTime();
-            setInterval(updateJapanTime, 1000);
+            // 3. extra_seed の選択状態をクッキーから復元
+            const savedExtraSeed = getCookie('preferredExtraSeed');
+            extraSeedInput.value = savedExtraSeed ? savedExtraSeed : '';
 
-            // 3. ページロード時に初回API呼び出し
-            const initialType = numericOnlyCheckbox.checked ? 'numeric' : 'alphanumeric';
-            fetchKey(lengthSelect.value, initialType);
+            // 4. 現在時刻の表示を開始し、日付変更を監視
+            initialJstDay = new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
+            updateJapanTime(); // 初回表示
+            setInterval(updateJapanTime, 1000); // 1秒ごとに更新
+
+            // ページロード時のキー取得はボタンクリックに委ねる
+            // randomKeyDisplay.textContent の初期表示を「キー取得ボタンを押してください」に変更
         });
 
-        // 桁数セレクトボックスのイベントリスナー
+        // 桁数セレクトボックスの値が変更されたときのイベントリスナー
         lengthSelect.addEventListener('change', () => {
             const selectedLength = lengthSelect.value;
             const currentType = numericOnlyCheckbox.checked ? 'numeric' : 'alphanumeric';
-            setCookie('preferredKeyLength', selectedLength);
-            fetchKey(selectedLength, currentType);
+            const currentExtraSeed = extraSeedInput.value;
+            setCookie('preferredKeyLength', selectedLength); // 選択された桁数をクッキーに保存
+            // fetchKeyはボタンクリックで実行
         });
 
-        // ★★★ 追加: 数字のみスイッチのイベントリスナー ★★★
+        // 数字のみスイッチの状態が変更されたときのイベントリスナー
         numericOnlyCheckbox.addEventListener('change', () => {
             const newType = numericOnlyCheckbox.checked ? 'numeric' : 'alphanumeric';
-            setCookie('preferredKeyType', newType);
-            fetchKey(lengthSelect.value, newType);
+            const currentExtraSeed = extraSeedInput.value;
+            setCookie('preferredKeyType', newType); // 選択されたタイプをクッキーに保存
+            // fetchKeyはボタンクリックで実行
+        });
+
+        // extra_seed 入力フィールドの値が変更されたときのイベントリスナー
+        extraSeedInput.addEventListener('input', () => {
+            const newExtraSeed = extraSeedInput.value;
+            setCookie('preferredExtraSeed', newExtraSeed); // 選択されたextra_seedをクッキーに保存
+            // fetchKeyはボタンクリックで実行
+        });
+
+        // ★★★ 追加: キー取得ボタンのイベントリスナー ★★★
+        getKeyButton.addEventListener('click', () => {
+            const selectedLength = lengthSelect.value;
+            const currentType = numericOnlyCheckbox.checked ? 'numeric' : 'alphanumeric';
+            const currentExtraSeed = extraSeedInput.value;
+            fetchKey(selectedLength, currentType, currentExtraSeed);
         });
     </script>
 </body>
